@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Prompter Visual Test</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: #252540; padding: 15px; border-radius: 12px; }
+    .card img { width: 100%; height: 180px; object-fit: cover; border-radius: 8px; }
+    .card h3 { margin: 10px 0 5px; font-size: 14px; }
+    .output { font-size: 20px; min-height: 60px; line-height: 1.3; word-break: break-word; }
+    .meta { font-size: 12px; color: #888; margin-top: 8px; }
+    h1 { text-align: center; }
+    .loading { text-align: center; padding: 40px; }
+  </style>
+</head>
+<body>
+  <h1>🎨 Emoji Prompter Visual Test</h1>
+  <div id="loading" class="loading">Loading test images...</div>
+  <div id="results" class="grid"></div>
+  
+  <script>
+    // HSL-based color detection
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) { h = s = 0; }
+      else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+          case g: h = ((b - r) / d + 2) / 6; break;
+          case b: h = ((r - g) / d + 4) / 6; break;
+        }
+      }
+      return { h: h * 360, s: s * 100, l: l * 100 };
+    }
+
+    function detectConceptHSL(r, g, b) {
+      const { h, s, l } = rgbToHsl(r, g, b);
+      if (l < 20) return 'sky_night';
+      if (l < 30) return 'black';
+      if (l > 90) return 'white';
+      if (l > 80 && s < 15) return 'sky_cloudy';
+      if (s < 10) return 'gray';
+      if (s < 20 && l > 40 && l < 70) return 'gray';
+      if (s > 15) {
+        if (h < 15 || h > 345) return l > 60 ? 'pink' : 'red';
+        if (h >= 15 && h < 45) return l > 70 ? 'sky_sunset' : (s > 40 ? 'orange' : 'brown');
+        if (h >= 45 && h < 65) return l > 60 ? 'yellow' : 'brown';
+        if (h >= 65 && h < 160) return l < 35 ? 'forest' : (s > 30 ? 'grass' : 'green');
+        if (h >= 160 && h < 220) return (l > 60 && s < 40) ? 'sky_blue' : (s > 30 ? 'water' : 'sky_blue');
+        if (h >= 220 && h < 260) return l < 30 ? 'sky_night' : 'blue';
+        if (h >= 260 && h < 290) return 'purple';
+        if (h >= 290 && h < 345) return l > 60 ? 'pink' : 'purple';
+      }
+      if (s >= 10 && s <= 50 && l >= 40 && l <= 80 && h >= 10 && h <= 40) return 'skin';
+      if (h >= 20 && h <= 45 && s >= 20 && s <= 60 && l >= 20 && l <= 50) return 'brown';
+      return 'gray';
+    }
+  </script>
+  <script>
+    const testImages = [
+      'mountain-sunset.jpg', 'ocean-beach.jpg', 'forest-path.jpg', 
+      'city-night.jpg', 'dog-portrait.jpg', 'red-flower.jpg',
+      'food-plate.jpg', 'portrait-man.jpg', 'portrait-woman.jpg',
+      'lake-reflection.jpg', 'green-plant.jpg'
+    ];
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    async function analyzeImage(imgSrc) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const maxSize = 200;
+          const scale = Math.min(maxSize / img.width, maxSize / img.height);
+          const w = Math.floor(img.width * scale);
+          const h = Math.floor(img.height * scale);
+          
+          canvas.width = w;
+          canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          
+          const imageData = ctx.getImageData(0, 0, w, h);
+          const pixels = imageData.data;
+          const gridSize = 5;
+          const cellW = Math.floor(w / gridSize);
+          const cellH = Math.floor(h / gridSize);
+          
+          const grid = [];
+          const conceptCounts = {};
+          
+          for (let gy = 0; gy < gridSize; gy++) {
+            const row = [];
+            for (let gx = 0; gx < gridSize; gx++) {
+              const region = analyzeRegion(pixels, w, gx * cellW, gy * cellH, cellW, cellH);
+              row.push(region);
+              if (region.concept) {
+                conceptCounts[region.concept] = (conceptCounts[region.concept] || 0) + 1;
+              }
+            }
+            grid.push(row);
+          }
+          
+          const overall = analyzeRegion(pixels, w, 0, 0, w, h);
+          const concepts = Object.entries(conceptCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([c]) => c);
+          
+          resolve({ grid, overall, concepts });
+        };
+        img.onerror = () => resolve(null);
+        img.src = imgSrc;
+      });
+    }
+    
+    function analyzeRegion(pixels, imgWidth, x, y, w, h) {
+      let r = 0, g = 0, b = 0, count = 0;
+      let maxSat = 0, maxSatColor = null;
+      
+      for (let py = y; py < y + h; py++) {
+        for (let px = x; px < x + w; px++) {
+          const i = (py * imgWidth + px) * 4;
+          const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2];
+          r += pr; g += pg; b += pb; count++;
+          
+          const pmax = Math.max(pr, pg, pb);
+          const pmin = Math.min(pr, pg, pb);
+          const psat = pmax === 0 ? 0 : (pmax - pmin) / pmax;
+          if (psat > maxSat && pmax > 50) {
+            maxSat = psat;
+            maxSatColor = [pr, pg, pb];
+          }
+        }
+      }
+      
+      const avgR = Math.floor(r / count);
+      const avgG = Math.floor(g / count);
+      const avgB = Math.floor(b / count);
+      const brightness = (avgR + avgG + avgB) / 3;
+      
+      const maxSatBright = maxSatColor ? (maxSatColor[0] + maxSatColor[1] + maxSatColor[2]) / 3 : 0;
+      const useColor = (maxSat > 0.4 && maxSatBright > 80 && maxSatColor) ? maxSatColor : [avgR, avgG, avgB];
+      const concept = detectConceptHSL(useColor[0], useColor[1], useColor[2]);
+      
+      return { avgColor: [avgR, avgG, avgB], brightness, concept };
+    }
+    
+    function getEmoji(concept) {
+      const map = {
+        sky_blue: '🌤️', sky_cloudy: '☁️', sky_sunset: '🌅', sky_night: '🌙',
+        grass: '🌿', forest: '🌲', water: '🌊', red: '❤️', orange: '🧡',
+        yellow: '💛', green: '💚', blue: '💙', purple: '💜', pink: '💗',
+        brown: '🤎', black: '🖤', white: '🤍', gray: '🩶', skin: '👤'
+      };
+      return map[concept] || '⬜';
+    }
+    
+    function generateOutput(analysis) {
+      const prompt = analysis.concepts.slice(0, 4).map(c => getEmoji(c) + getEmoji(c)).join(' ');
+      const extra = analysis.overall.brightness > 180 ? ' ✨' : analysis.overall.brightness < 80 ? ' 🌑' : '';
+      return prompt + extra;
+    }
+    
+    async function runTests() {
+      const results = document.getElementById('results');
+      document.getElementById('loading').style.display = 'none';
+      
+      for (const name of testImages) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `<img src="../test-images/${name}"><h3>${name}</h3><div class="output">Analyzing...</div><div class="meta"></div>`;
+        results.appendChild(card);
+        
+        const analysis = await analyzeImage(`../test-images/${name}`);
+        const output = card.querySelector('.output');
+        const meta = card.querySelector('.meta');
+        
+        if (analysis) {
+          output.textContent = generateOutput(analysis);
+          const [r, g, b] = analysis.overall.avgColor;
+          meta.textContent = `Concepts: ${analysis.concepts.slice(0, 3).join(', ')} | RGB(${r},${g},${b}) | Bright: ${Math.round(analysis.overall.brightness)}`;
+        } else {
+          output.textContent = '❌ Failed to load';
+        }
+      }
+    }
+    
+    runTests();
+  </script>
+</body>
+</html>

@@ -71,7 +71,100 @@ const SEMANTIC_MAP = {
   framed: ['🖼️', '📷'],
 };
 
-// Color to concept mapping
+// HSL-based detection (more accurate than RGB ranges)
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return { h: h * 360, s: s * 100, l: l * 100 };
+}
+
+function detectConceptHSL(r, g, b) {
+  const { h, s, l } = rgbToHsl(r, g, b);
+  
+  // Very dark = night/black
+  if (l < 20) return 'sky_night';
+  if (l < 30) return 'black';
+  
+  // Very bright = white/bright
+  if (l > 90) return 'white';
+  if (l > 80 && s < 15) return 'sky_cloudy';
+  
+  // Low saturation = gray
+  if (s < 10) return 'gray';
+  if (s < 20 && l > 40 && l < 70) return 'gray';
+  
+  // Color detection by hue
+  if (s > 15) {
+    // Reds (0-15, 345-360)
+    if (h < 15 || h > 345) {
+      if (l > 60) return 'pink';
+      if (l > 40) return 'red';
+      return 'red';
+    }
+    // Oranges (15-45)
+    if (h >= 15 && h < 45) {
+      if (l > 70) return 'sky_sunset';
+      if (s > 40) return 'orange';
+      return 'brown';
+    }
+    // Yellows (45-65)
+    if (h >= 45 && h < 65) {
+      if (l > 60) return 'yellow';
+      return 'brown';
+    }
+    // Yellow-greens and greens (65-160)
+    if (h >= 65 && h < 160) {
+      if (l < 35) return 'forest';
+      if (s > 30) return 'grass';
+      return 'green';
+    }
+    // Cyans and light blues (160-220)
+    if (h >= 160 && h < 220) {
+      if (l > 60 && s < 40) return 'sky_blue';
+      if (s > 30) return 'water';
+      return 'sky_blue';
+    }
+    // Blues (220-260)
+    if (h >= 220 && h < 260) {
+      if (l < 30) return 'sky_night';
+      return 'blue';
+    }
+    // Purples (260-290)
+    if (h >= 260 && h < 290) return 'purple';
+    // Magentas/pinks (290-345)
+    if (h >= 290 && h < 345) {
+      if (l > 60) return 'pink';
+      return 'purple';
+    }
+  }
+  
+  // Skin tones (low sat, medium lightness, warm hue)
+  if (s >= 10 && s <= 50 && l >= 40 && l <= 80) {
+    if (h >= 10 && h <= 40) return 'skin';
+  }
+  
+  // Browns
+  if (h >= 20 && h <= 45 && s >= 20 && s <= 60 && l >= 20 && l <= 50) {
+    return 'brown';
+  }
+  
+  return 'gray';
+}
+
+// Color to concept mapping (legacy, kept for reference)
 const COLOR_CONCEPTS = [
   { range: [[180, 220], [200, 255], [220, 255]], concept: 'sky_blue', name: 'blue sky' },
   { range: [[200, 240], [200, 240], [200, 255]], concept: 'sky_cloudy', name: 'cloudy' },
@@ -250,18 +343,31 @@ class ImagePrompter {
     let r = 0, g = 0, b = 0, count = 0;
     const colors = {};
     
+    // Track most saturated pixel for feature detection
+    let maxSat = 0, maxSatColor = null;
+    
     for (let py = y; py < y + h; py++) {
       for (let px = x; px < x + w; px++) {
         const i = (py * imgWidth + px) * 4;
-        r += pixels[i];
-        g += pixels[i + 1];
-        b += pixels[i + 2];
+        const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2];
+        r += pr;
+        g += pg;
+        b += pb;
         count++;
         
+        // Track saturation
+        const pmax = Math.max(pr, pg, pb);
+        const pmin = Math.min(pr, pg, pb);
+        const psat = pmax === 0 ? 0 : (pmax - pmin) / pmax;
+        if (psat > maxSat && pmax > 50) {  // Ignore very dark pixels
+          maxSat = psat;
+          maxSatColor = [pr, pg, pb];
+        }
+        
         // Quantize for histogram
-        const qr = Math.floor(pixels[i] / 32);
-        const qg = Math.floor(pixels[i + 1] / 32);
-        const qb = Math.floor(pixels[i + 2] / 32);
+        const qr = Math.floor(pr / 32);
+        const qg = Math.floor(pg / 32);
+        const qb = Math.floor(pb / 32);
         const key = `${qr},${qg},${qb}`;
         colors[key] = (colors[key] || 0) + 1;
       }
@@ -287,26 +393,28 @@ class ImagePrompter {
     const min = Math.min(avgR, avgG, avgB);
     const saturation = max === 0 ? 0 : (max - min) / max;
     
+    // Use most saturated color if it's bright enough and saturated enough
+    // This helps detect colorful subjects on neutral backgrounds
+    const maxSatBright = maxSatColor ? (maxSatColor[0] + maxSatColor[1] + maxSatColor[2]) / 3 : 0;
+    const useColor = (maxSat > 0.4 && maxSatBright > 80 && maxSatColor) ? maxSatColor : [avgR, avgG, avgB];
+    
     // Identify concept
-    const concept = this.identifyConcept(avgR, avgG, avgB);
+    const concept = this.identifyConcept(useColor[0], useColor[1], useColor[2]);
     
     return {
       avgColor: [avgR, avgG, avgB],
       dominant,
       brightness,
       saturation,
+      maxSatColor,
+      maxSat,
       concept
     };
   }
   
   identifyConcept(r, g, b) {
-    for (const def of COLOR_CONCEPTS) {
-      const [[rMin, rMax], [gMin, gMax], [bMin, bMax]] = def.range;
-      if (r >= rMin && r <= rMax && g >= gMin && g <= gMax && b >= bMin && b <= bMax) {
-        return def.concept;
-      }
-    }
-    return null;
+    // Use HSL-based detection for better accuracy
+    return detectConceptHSL(r, g, b);
   }
   
   detectComposition(grid) {
