@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Large generated files (run npm run extract to generate)
+data/emoji-features*.json
+
+# Build output (run npm run build to generate)
+dist/
+
+# OS
+.DS_Store

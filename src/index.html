@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emoji Mosaic Generator</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --primary: #e94560;
+      --text: #eee;
+      --text-muted: #888;
+    }
+    
+    * { box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+    }
+    
+    .controls {
+      background: var(--surface);
+      padding: 20px;
+      border-radius: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    select, input[type="range"], input[type="file"] {
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+    }
+    
+    input[type="file"] {
+      cursor: pointer;
+    }
+    
+    .drop-zone {
+      border: 2px dashed #444;
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(233, 69, 96, 0.1);
+    }
+    
+    .drop-zone p {
+      margin: 0;
+      color: var(--text-muted);
+    }
+    
+    .preview-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    @media (max-width: 768px) {
+      .preview-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .preview-box {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 15px;
+    }
+    
+    .preview-box h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+    
+    #sourcePreview {
+      max-width: 100%;
+      border-radius: 8px;
+      display: none;
+    }
+    
+    #mosaicOutput {
+      font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+      font-size: var(--emoji-size, 16px);
+      line-height: 1.0;
+      letter-spacing: 0;
+      white-space: pre;
+      overflow-x: auto;
+      overflow-y: auto;
+      padding: 10px;
+      background: var(--bg);
+      border-radius: 8px;
+      min-height: 200px;
+      max-height: 70vh;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+    
+    .stats {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+    
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      background: var(--primary);
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    
+    button:hover {
+      opacity: 0.9;
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    #status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎨 Emoji Mosaic Generator</h1>
+    <p class="subtitle">Structural 8×8 pixel matching for accurate emoji art</p>
+    
+    <div class="controls">
+      <div class="control-group">
+        <label>Emoji Width</label>
+        <input type="range" id="emojiWidth" min="10" max="120" value="80">
+        <span id="widthValue">80 emojis</span>
+      </div>
+      
+      <div class="control-group">
+        <label>Background</label>
+        <select id="background">
+          <optgroup label="Basic">
+            <option value="white">White</option>
+            <option value="black">Black</option>
+          </optgroup>
+          <optgroup label="iOS">
+            <option value="ios_light">iOS Light</option>
+            <option value="ios_dark">iOS Dark</option>
+            <option value="imsg_blue">iMessage Blue</option>
+            <option value="imsg_green">iMessage Green (SMS)</option>
+          </optgroup>
+          <optgroup label="Android">
+            <option value="android_light">Android Light</option>
+            <option value="android_dark">Android Dark</option>
+          </optgroup>
+          <optgroup label="Discord">
+            <option value="discord_dark">Discord Dark</option>
+            <option value="discord_blurple">Discord Blurple</option>
+          </optgroup>
+          <optgroup label="WhatsApp">
+            <option value="whatsapp_light">WhatsApp Light Bubble</option>
+            <option value="whatsapp_dark">WhatsApp Dark Bubble</option>
+            <option value="whatsapp_bg">WhatsApp Background</option>
+          </optgroup>
+          <optgroup label="Slack">
+            <option value="slack_light">Slack Light</option>
+            <option value="slack_dark">Slack Dark</option>
+            <option value="slack_purple">Slack Purple</option>
+          </optgroup>
+          <optgroup label="Telegram">
+            <option value="telegram_light">Telegram Light</option>
+            <option value="telegram_dark">Telegram Dark</option>
+            <option value="telegram_blue">Telegram Blue</option>
+          </optgroup>
+          <optgroup label="Twitter/X">
+            <option value="twitter_light">Twitter Light</option>
+            <option value="twitter_dark">Twitter Dark</option>
+            <option value="twitter_blue">Twitter Blue</option>
+          </optgroup>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Match Mode</label>
+        <select id="matchMode">
+          <option value="color">Full Color (RGB)</option>
+          <option value="grayscale">Grayscale (Luminance)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Engine</label>
+        <select id="engine">
+          <option value="full" selected>Full (320-dim, best quality)</option>
+          <option value="fast">Fast (48-dim PCA)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Aspect Ratio</label>
+        <select id="aspectRatio">
+          <option value="1.0" selected>True (preserves image)</option>
+          <option value="0.5">Text display (2:1)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Diversity</label>
+        <select id="diversity">
+          <option value="1" selected>Best match only (uniform)</option>
+          <option value="3">Top 3 (subtle variety)</option>
+          <option value="5">Top 5</option>
+          <option value="10">Top 10 (high variety)</option>
+          <option value="15">Top 15</option>
+          <option value="25">Top 25 (chaos)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>Avoid Repeats</label>
+        <select id="avoidRecent">
+          <option value="0" selected>Off (allow repeats)</option>
+          <option value="10">Last 10</option>
+          <option value="25">Last 25</option>
+          <option value="50">Last 50</option>
+          <option value="100">Last 100</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>2×2 Quad Refinement</label>
+        <select id="quadRefine">
+          <option value="off" selected>Off</option>
+          <option value="on">On (smoother gradients)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label>JA Diffuser</label>
+        <select id="jaDiffuser">
+          <option value="off" selected>Off</option>
+          <option value="light">Light (2 passes)</option>
+          <option value="medium">Medium (5 passes)</option>
+          <option value="heavy">Heavy (10 passes)</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="drop-zone" id="dropZone">
+      <p>📷 Drop an image here or click to upload</p>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+    </div>
+    
+    <div class="preview-container">
+      <div class="preview-box">
+        <h3>Source Image</h3>
+        <img id="sourcePreview" alt="Source">
+        <canvas id="sourceCanvas" hidden></canvas>
+      </div>
+      
+      <div class="preview-box">
+        <h3>Emoji Mosaic</h3>
+        <div id="mosaicOutput">
+          <div class="loading" id="initialMessage">
+            Upload an image to generate a mosaic
+          </div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div class="actions">
+          <button id="copyBtn" disabled>📋 Copy</button>
+          <button id="downloadBtn" disabled>💾 Download PNG</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="status"></div>
+
+  <script type="module">
+    import { createMatcher } from './matcher.js';
+    import { createFastMatcher } from './matcher-fast.js';
+    import { loadCodebook, refineWithQuads, isLoaded as isQuadLoaded } from './quad-refiner.js';
+    import { createJADiffuser } from './ja-diffuser.js';
+    
+    let matcher = null;
+    let fastMatcher = null;
+    let currentMosaic = null;
+    let currentEngine = 'full';
+    let currentImage = null;  // Store the loaded image
+    let regenerateTimeout = null;  // Debounce timer
+    
+    // DOM elements
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const sourcePreview = document.getElementById('sourcePreview');
+    const sourceCanvas = document.getElementById('sourceCanvas');
+    const mosaicOutput = document.getElementById('mosaicOutput');
+    const emojiWidthInput = document.getElementById('emojiWidth');
+    const widthValue = document.getElementById('widthValue');
+    const backgroundSelect = document.getElementById('background');
+    const matchModeSelect = document.getElementById('matchMode');
+    const engineSelect = document.getElementById('engine');
+    const aspectSelect = document.getElementById('aspectRatio');
+    const diversitySelect = document.getElementById('diversity');
+    const avoidRecentSelect = document.getElementById('avoidRecent');
+    const quadRefineSelect = document.getElementById('quadRefine');
+    const jaDiffuserSelect = document.getElementById('jaDiffuser');
+    const copyBtn = document.getElementById('copyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const statsEl = document.getElementById('stats');
+    const statusEl = document.getElementById('status');
+    
+    // Initialize matchers
+    async function init() {
+      showStatus('Loading full features...');
+      try {
+        matcher = await createMatcher('./emoji-features.json');
+        showStatus(`Full: ${matcher.emojis.length} emojis (${matcher.gridSize}×${matcher.gridSize} grid)`, 2000);
+        
+        // Preload quad codebook in background
+        loadCodebook('./quad-codebook.json').catch(e => console.warn('Quad codebook not loaded:', e));
+      } catch (e) {
+        console.warn('Full matcher failed:', e);
+        mosaicOutput.innerHTML = `<div class="loading">❌ Failed to load: ${e.message}</div>`;
+      }
+    }
+    
+    async function loadFullMatcher() {
+      if (matcher) return;
+      showStatus('Loading full features...');
+      try {
+        matcher = await createMatcher('./emoji-features.json');
+        showStatus(`Full: ${matcher.emojis.length} emojis loaded`, 2000);
+      } catch (e) {
+        mosaicOutput.innerHTML = `<div class="loading">❌ Failed to load: ${e.message}</div>`;
+      }
+    }
+    
+    async function loadFastMatcher() {
+      if (fastMatcher) return;
+      showStatus('Loading fast embeddings...');
+      try {
+        fastMatcher = await createFastMatcher('./emoji-embeddings.json');
+        showStatus(`Fast: ${fastMatcher.emojis.length} emojis loaded`, 2000);
+      } catch (e) {
+        console.warn('Fast matcher failed:', e);
+      }
+    }
+    
+    function getActiveMatcher() {
+      return currentEngine === 'fast' ? fastMatcher : matcher;
+    }
+    
+    function showStatus(msg, timeout = 0) {
+      statusEl.textContent = msg;
+      statusEl.style.display = 'block';
+      if (timeout) setTimeout(() => statusEl.style.display = 'none', timeout);
+    }
+    
+    // File handling
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) processFile(e.target.files[0]);
+    });
+    
+    function processFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          currentImage = img;  // Store for re-renders
+          sourcePreview.src = e.target.result;
+          sourcePreview.style.display = 'block';
+          generateMosaic(img);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    function regenerateDebounced() {
+      if (!currentImage) return;
+      clearTimeout(regenerateTimeout);
+      regenerateTimeout = setTimeout(() => generateMosaic(currentImage), 100);
+    }
+    
+    async function generateMosaic(img) {
+      const activeMatcher = getActiveMatcher();
+      
+      if (!activeMatcher) {
+        if (currentEngine === 'full') {
+          await loadFullMatcher();
+        } else {
+          mosaicOutput.innerHTML = '<div class="loading">⏳ Matcher not ready...</div>';
+          return;
+        }
+      }
+      
+      const m = getActiveMatcher();
+      if (!m) return;
+      
+      const width = parseInt(emojiWidthInput.value);
+      const background = backgroundSelect.value;
+      const mode = matchModeSelect.value;
+      const emojiAspect = parseFloat(aspectSelect.value);
+      const diversity = parseInt(diversitySelect.value);
+      const avoidRecent = parseInt(avoidRecentSelect.value);
+      
+      showStatus(`Generating (${currentEngine})...`);
+      const startTime = performance.now();
+      
+      // Use natural dimensions (works for both Image objects and img elements)
+      const imgW = img.naturalWidth || img.width;
+      const imgH = img.naturalHeight || img.height;
+      
+      // Draw image to canvas
+      const ctx = sourceCanvas.getContext('2d');
+      sourceCanvas.width = imgW;
+      sourceCanvas.height = imgH;
+      ctx.drawImage(img, 0, 0, imgW, imgH);
+      
+      const imageData = ctx.getImageData(0, 0, imgW, imgH);
+      
+      // Generate mosaic
+      console.log('Generating mosaic:', { imgW, imgH, width, background, mode, emojiAspect, diversity, avoidRecent });
+      console.log('Matcher gridSize:', m.gridSize);
+      currentMosaic = m.imageToMosaic(imageData, { width, background, mode, emojiAspect, diversity, avoidRecent });
+      console.log('Mosaic dimensions:', currentMosaic.length, 'x', currentMosaic[0]?.length);
+      console.log('Sample row:', currentMosaic[0]?.slice(0, 10).join(''));
+      
+      // Apply quad refinement if enabled
+      const quadRefine = quadRefineSelect.value === 'on';
+      if (quadRefine && isQuadLoaded()) {
+        const blockW = Math.floor(imgW / currentMosaic[0].length);
+        const blockH = Math.floor(imgH / currentMosaic.length);
+        currentMosaic = refineWithQuads(currentMosaic, imageData, blockW, blockH);
+        console.log('Applied quad refinement');
+      }
+      
+      // Apply JA Diffuser if enabled
+      const jaMode = jaDiffuserSelect.value;
+      if (jaMode !== 'off' && m.features) {
+        const iterations = { light: 2, medium: 5, heavy: 10 }[jaMode] || 5;
+        const blockW = Math.floor(imgW / currentMosaic[0].length);
+        const blockH = Math.floor(imgH / currentMosaic.length);
+        
+        const diffuser = createJADiffuser(m.features, { iterations });
+        currentMosaic = diffuser.optimize(currentMosaic, imageData, blockW, blockH, background);
+        console.log(`Applied JA Diffuser (${jaMode})`);
+      }
+      
+      const mosaicText = m.mosaicToString(currentMosaic);
+      
+      const elapsed = performance.now() - startTime;
+      
+      // Display
+      mosaicOutput.textContent = mosaicText;
+      
+      // Auto-size emojis to fit container
+      const containerWidth = mosaicOutput.clientWidth - 20;
+      const emojiSize = Math.max(8, Math.min(24, Math.floor(containerWidth / currentMosaic[0].length)));
+      mosaicOutput.style.setProperty('--emoji-size', `${emojiSize}px`);
+      
+      statsEl.textContent = `${currentMosaic.length}×${currentMosaic[0].length} = ${currentMosaic.length * currentMosaic[0].length} emojis | ${elapsed.toFixed(0)}ms | ${currentEngine}`;
+      
+      copyBtn.disabled = false;
+      downloadBtn.disabled = false;
+      
+      showStatus(`Generated in ${elapsed.toFixed(0)}ms`, 2000);
+    }
+    
+    // Controls
+    emojiWidthInput.addEventListener('input', e => {
+      widthValue.textContent = `${e.target.value} emojis`;
+      regenerateDebounced();
+    });
+    
+    backgroundSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    matchModeSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    engineSelect.addEventListener('change', async (e) => {
+      currentEngine = e.target.value;
+      if (currentEngine === 'full' && !matcher) {
+        await loadFullMatcher();
+      } else if (currentEngine === 'fast' && !fastMatcher) {
+        await loadFastMatcher();
+      }
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    aspectSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    diversitySelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    avoidRecentSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    quadRefineSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    jaDiffuserSelect.addEventListener('change', () => {
+      if (currentImage) generateMosaic(currentImage);
+    });
+    
+    // Copy button - wraps in code block for chat compatibility
+    copyBtn.addEventListener('click', async () => {
+      if (!currentMosaic) return;
+      const m = getActiveMatcher();
+      const text = m.mosaicToString(currentMosaic);
+      const wrapped = '```\n' + text + '\n```';
+      await navigator.clipboard.writeText(wrapped);
+      showStatus('Copied (code block format)!', 2000);
+    });
+    
+    // Download button (render to canvas)
+    downloadBtn.addEventListener('click', () => {
+      if (!currentMosaic) return;
+      
+      const emojiSize = 32;
+      const rows = currentMosaic.length;
+      const cols = currentMosaic[0].length;
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = cols * emojiSize;
+      canvas.height = rows * emojiSize;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      const bgColors = {
+        white: '#FFFFFF', black: '#000000',
+        ios_light: '#F2F2F7', ios_dark: '#1C1C1E',
+        android_light: '#FEFBFF', android_dark: '#1C1B1F',
+        imsg_blue: '#007AFF', imsg_green: '#34C759'
+      };
+      ctx.fillStyle = bgColors[backgroundSelect.value] || '#FFFFFF';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw emojis
+      ctx.font = `${emojiSize - 4}px 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji'`;
+      ctx.textBaseline = 'top';
+      
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          ctx.fillText(currentMosaic[y][x], x * emojiSize, y * emojiSize);
+        }
+      }
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = 'emoji-mosaic.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      
+      showStatus('Downloaded!', 2000);
+    });
+    
+    // Init
+    init();
+  </script>
+</body>
+</html>

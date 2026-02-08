@@ -1,0 +1,20 @@
+{
+  "name": "emoji-mosaic",
+  "version": "0.1.0",
+  "description": "Structural emoji mosaic generator with sub-pixel pattern matching",
+  "type": "module",
+  "scripts": {
+    "extract": "node scripts/extract-features-parallel.js",
+    "extract:slow": "node scripts/extract-features.js",
+    "build": "node scripts/build-web.js",
+    "demo": "npx serve dist"
+  },
+  "dependencies": {
+    "canvas": "^3.2.1",
+    "emoji-datasource": "^16.0.0",
+    "twemoji-parser": "^14.0.0"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}
