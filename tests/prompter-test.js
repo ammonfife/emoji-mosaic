@@ -201,6 +201,31 @@ const TEST_CASES = {
     expectedConcepts: ['orange', 'brown'],  // Warm-lit plant
     mustHaveEmoji: ['🧡', '🤎'],
     description: 'Plant with warm lighting'
+  },
+  'face-closeup.jpg': {
+    expectedConcepts: ['skin', 'brown', 'orange'],
+    mustHaveEmoji: [],
+    description: 'Face closeup portrait'
+  },
+  'rainbow-gradient.jpg': {
+    expectedConcepts: ['purple', 'pink', 'blue', 'orange'],
+    mustHaveEmoji: ['💜'],
+    description: 'Colorful gradient'
+  },
+  'purple-gradient.jpg': {
+    expectedConcepts: ['purple', 'blue', 'pink'],
+    mustHaveEmoji: ['💜', '💙'],
+    description: 'Purple/blue gradient'
+  },
+  'starry-night.jpg': {
+    expectedConcepts: ['black', 'sky_night', 'blue'],
+    mustHaveEmoji: ['🖤', '🌙'],
+    description: 'Starry night sky'
+  },
+  'fire-flames.jpg': {
+    expectedConcepts: ['orange', 'red', 'yellow', 'black'],
+    mustHaveEmoji: ['🧡', '❤️'],
+    description: 'Fire/flames'
   }
 };
 
