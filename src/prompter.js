@@ -492,74 +492,121 @@ class ImagePrompter {
       return options[Math.floor(Math.random() * options.length)];
     }
     const result = [];
+    const shuffled = [...options].sort(() => Math.random() - 0.5);
     for (let i = 0; i < count; i++) {
-      result.push(options[i % options.length]);
+      result.push(shuffled[i % shuffled.length]);
     }
     return result.join('');
   }
   
+  getRandomEmoji(concept, count) {
+    const options = SEMANTIC_MAP[concept] || SEMANTIC_MAP.gray;
+    const shuffled = [...options].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+  
   generatePrompt(analysis, maxEmoji) {
-    const parts = [];
-    const usedEmoji = [];
+    const emojiCount = {
+      minimal: 10,
+      standard: 25,
+      detailed: 50,
+      rich: 100
+    }[document.getElementById('detailLevel').value] || 25;
     
-    // Main subject from concepts
-    for (const concept of analysis.concepts.slice(0, 3)) {
-      const emoji = this.getEmoji(concept, 2);
-      usedEmoji.push(emoji);
+    const allEmoji = [];
+    const parts = [];
+    
+    // Main concepts - use many varied emoji
+    for (const concept of analysis.concepts.slice(0, 5)) {
+      const count = Math.ceil(emojiCount / 5);
+      const emoji = this.getRandomEmoji(concept, count);
+      allEmoji.push(...emoji);
     }
     
-    parts.push(usedEmoji.join(' '));
+    // Shuffle and add first batch
+    const shuffled = allEmoji.sort(() => Math.random() - 0.5);
+    parts.push(shuffled.slice(0, Math.floor(emojiCount * 0.6)).join(''));
     
-    // Composition hints
+    // Composition hints with varied emoji
     if (document.getElementById('includeComposition').checked) {
       if (analysis.composition.isLayered) {
-        parts.push('⬆️⬇️'); // layered composition
+        parts.push('⬆️🔝📈⬇️🔻📉');
       }
       if (analysis.composition.hasCenter) {
-        parts.push('🎯'); // centered subject
+        const centerEmoji = this.getRandomEmoji('centered', 3);
+        parts.push(centerEmoji.join(''));
       }
     }
     
-    // Color palette
+    // Rich color palette
     if (document.getElementById('includeColors').checked) {
       const [r, g, b] = analysis.overall.avgColor;
       const colorEmoji = [];
-      if (r > 180 && g < 100 && b < 100) colorEmoji.push('❤️');
-      if (g > 180 && r < 100 && b < 100) colorEmoji.push('💚');
-      if (b > 180 && r < 100 && g < 100) colorEmoji.push('💙');
-      if (r > 180 && g > 150 && b < 100) colorEmoji.push('💛');
-      if (analysis.overall.brightness > 180) colorEmoji.push('✨');
-      if (analysis.overall.brightness < 80) colorEmoji.push('🌑');
+      
+      // Dominant color
+      if (r > g && r > b) colorEmoji.push(...this.getRandomEmoji('red', 3));
+      else if (g > r && g > b) colorEmoji.push(...this.getRandomEmoji('green', 3));
+      else if (b > r && b > g) colorEmoji.push(...this.getRandomEmoji('blue', 3));
+      
+      // Warm vs cool
+      if (r + g > b * 2) colorEmoji.push(...this.getRandomEmoji('orange', 2));
+      if (b + g > r * 2) colorEmoji.push(...this.getRandomEmoji('water', 2));
+      
+      // Brightness indicators
+      if (analysis.overall.brightness > 180) {
+        colorEmoji.push('✨', '💫', '⭐', '🌟', '☀️', '💡');
+      } else if (analysis.overall.brightness < 80) {
+        colorEmoji.push('🌑', '🌙', '⭐', '✨', '🌌', '🦇');
+      }
+      
       if (colorEmoji.length) parts.push(colorEmoji.join(''));
     }
     
-    // Mood
+    // Rich mood section
     if (document.getElementById('includeMood').checked) {
       const brightness = analysis.overall.brightness;
       const saturation = analysis.overall.saturation;
+      let moodEmoji = [];
+      
       if (brightness > 180 && saturation > 0.3) {
-        parts.push(this.getEmoji('happy'));
+        moodEmoji = this.getRandomEmoji('happy', 5);
       } else if (brightness < 80) {
-        parts.push(this.getEmoji('mysterious'));
+        moodEmoji = this.getRandomEmoji('mysterious', 5);
+      } else if (saturation > 0.5) {
+        moodEmoji = this.getRandomEmoji('energetic', 4);
       } else if (saturation < 0.2) {
-        parts.push(this.getEmoji('calm'));
+        moodEmoji = this.getRandomEmoji('calm', 4);
+      } else {
+        moodEmoji = this.getRandomEmoji('peaceful', 3);
       }
+      
+      if (moodEmoji.length) parts.push(moodEmoji.join(''));
     }
     
-    // Add spatial hints from grid
+    // Spatial hints from grid with more emoji
     const size = analysis.grid.length;
     const mid = Math.floor(size / 2);
     
-    // Top region
+    // Top region (sky, background)
     const topConcept = analysis.grid[0][mid].concept;
-    if (topConcept && !analysis.concepts.includes(topConcept)) {
-      parts.push('⬆️' + this.getEmoji(topConcept));
+    if (topConcept) {
+      parts.push('⬆️' + this.getRandomEmoji(topConcept, 3).join(''));
     }
     
-    // Bottom region  
+    // Bottom region (ground, foreground)
     const bottomConcept = analysis.grid[size-1][mid].concept;
     if (bottomConcept && bottomConcept !== topConcept) {
-      parts.push('⬇️' + this.getEmoji(bottomConcept));
+      parts.push('⬇️' + this.getRandomEmoji(bottomConcept, 3).join(''));
+    }
+    
+    // Left and right edges for panoramic feel
+    const leftConcept = analysis.grid[mid][0].concept;
+    const rightConcept = analysis.grid[mid][size-1].concept;
+    if (leftConcept && leftConcept !== topConcept && leftConcept !== bottomConcept) {
+      parts.push('◀️' + this.getEmoji(leftConcept, 2));
+    }
+    if (rightConcept && rightConcept !== leftConcept) {
+      parts.push('▶️' + this.getEmoji(rightConcept, 2));
     }
     
     return parts.join(' ');

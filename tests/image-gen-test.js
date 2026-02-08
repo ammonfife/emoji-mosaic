@@ -53,25 +53,53 @@ function detectConceptHSL(r, g, b) {
   return 'gray';
 }
 
-// Concept to natural language mapping
+// Rich emoji mappings for each concept
+const CONCEPT_EMOJI = {
+  sky_blue: ['🌤️', '☀️', '🌞', '💙', '🩵', '🏝️', '⛱️', '🪁', '🌈', '☁️', '🕊️', '✈️'],
+  sky_cloudy: ['☁️', '🌥️', '⛅', '🌫️', '🌁', '💨', '🌬️', '🕊️', '✈️'],
+  sky_sunset: ['🌅', '🌇', '🧡', '💛', '🔶', '🟠', '🌄', '🏜️', '🦒', '🦁', '🐪'],
+  sky_night: ['🌙', '🌃', '✨', '⭐', '🌌', '🌑', '💫', '🪐', '🛸', '🔭', '🌠', '🎆', '🦇', '🦉'],
+  grass: ['🌿', '🌱', '🍀', '💚', '🟢', '☘️', '🌾', '🪴', '🐸', '🦋', '🐝', '🐞'],
+  trees: ['🌳', '🌲', '🌴', '🎋', '🎄', '🪵', '🍂', '🍁', '🍃', '🐿️', '🦜'],
+  forest: ['🌲', '🌳', '🍂', '🍃', '🍄', '🐻', '🦌', '🐺', '🦊', '🐗', '🪵', '🏕️', '🔥', '🦉'],
+  water: ['🌊', '💧', '💦', '🏄', '⛵', '🐟', '🐠', '🐳', '🐬', '🦭', '🏝️', '⚓', '🚢'],
+  ocean: ['🌊', '🐚', '🏖️', '⛵', '🦑', '🐙', '🦞', '🦀', '🐠', '🦈', '🐳', '🐬', '🏄', '🪸', '🐢'],
+  mountain: ['🏔️', '⛰️', '🗻', '🏕️', '⛺', '🥾', '🧗', '🦅', '🐐', '🏂', '⛷️'],
+  red: ['❤️', '🔴', '🍎', '🌹', '🍒', '🍓', '🥀', '🎈', '❣️', '💋', '🚗', '🦞', '🍅', '🌶️', '🔥'],
+  orange: ['🧡', '🟠', '🍊', '🔶', '🥕', '🎃', '🦊', '🐅', '🦁', '🏀', '🥭', '🍑', '🔥', '🌅'],
+  yellow: ['💛', '🟡', '⭐', '🌟', '🌻', '🌼', '🍋', '🍌', '🐥', '⚡', '💡', '🏆', '👑', '☀️', '🌞'],
+  green: ['💚', '🟢', '🌿', '🍀', '☘️', '🌱', '🌲', '🥒', '🥬', '🥦', '🐸', '🦎', '🐊', '🌵', '🎄'],
+  blue: ['💙', '🔵', '🌊', '💎', '🩵', '🐳', '🐋', '🐬', '🦋', '🧊', '❄️', '🌀', '💠'],
+  purple: ['💜', '🟣', '🍇', '👾', '🔮', '🪻', '☂️', '🍆', '🦄', '🎆', '👿'],
+  pink: ['💗', '🩷', '🌸', '🎀', '💕', '💖', '💝', '🌷', '🌺', '🦩', '🧁', '🍧'],
+  brown: ['🤎', '🟤', '🌰', '🪵', '🐻', '🦁', '🐴', '🦌', '🐿️', '🏈', '🥜', '🍞', '🍔', '☕'],
+  black: ['🖤', '⬛', '🌑', '🎱', '🦇', '🐈‍⬛', '🕷️', '🦍', '🎩', '🕶️', '💣', '🏴‍☠️'],
+  white: ['🤍', '⬜', '☁️', '🕊️', '🦢', '🐇', '⛄', '☃️', '❄️', '💎', '🥛', '👻', '💀'],
+  gray: ['🩶', '🔘', '🌫️', '🐘', '🦏', '🐺', '🦈', '🌪️', '💨', '🗿', '🪨', '⚙️'],
+  skin: ['👤', '🧑', '👨', '👩', '👶', '🧒', '🤰', '👼', '💆', '💇', '🚶', '💃', '🕺', '🧘']
+};
+
+// Concept to natural language mapping (for fallback/mixing)
 const CONCEPT_DESCRIPTIONS = {
   sky_blue: 'bright blue sky',
   sky_cloudy: 'overcast cloudy sky',
   sky_sunset: 'warm sunset sky with orange and pink',
-  sky_night: 'dark night sky',
+  sky_night: 'dark night sky with stars',
   grass: 'green grass and foliage',
-  forest: 'dark forest trees',
-  water: 'blue water',
-  red: 'red colors',
+  forest: 'dark forest with trees',
+  water: 'blue water and waves',
+  ocean: 'ocean with sea life',
+  mountain: 'mountains and peaks',
+  red: 'red colors and warmth',
   orange: 'warm orange tones',
-  yellow: 'bright yellow',
-  green: 'green nature',
-  blue: 'deep blue',
-  purple: 'purple and violet',
-  pink: 'soft pink',
+  yellow: 'bright yellow sunshine',
+  green: 'lush green nature',
+  blue: 'deep blue tones',
+  purple: 'purple and violet hues',
+  pink: 'soft pink colors',
   brown: 'earthy brown tones',
-  black: 'dark shadows',
-  white: 'bright white',
+  black: 'dark shadows and night',
+  white: 'bright white and light',
   gray: 'neutral gray tones',
   skin: 'natural skin tones'
 };
@@ -165,26 +193,44 @@ class ImageGenTester {
     return { avgColor: [avgR, avgG, avgB], concept };
   }
 
+  getRandomEmoji(concept, count) {
+    const options = CONCEPT_EMOJI[concept] || CONCEPT_EMOJI.gray;
+    const shuffled = [...options].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  }
+
   generatePrompt(analysis) {
-    // Create a natural language prompt from concepts
+    const parts = [];
+    
+    // Rich emoji section - lots of varied emoji for each concept
+    const allEmoji = [];
+    for (const concept of analysis.concepts.slice(0, 5)) {
+      const emoji = this.getRandomEmoji(concept, 6);
+      allEmoji.push(...emoji);
+    }
+    
+    // Shuffle for variety
+    const shuffled = allEmoji.sort(() => Math.random() - 0.5);
+    parts.push(shuffled.slice(0, 20).join(''));
+    
+    // Natural language descriptions
     const descriptions = analysis.concepts
-      .slice(0, 4)
+      .slice(0, 3)
       .map(c => CONCEPT_DESCRIPTIONS[c] || c)
       .filter(Boolean);
-
-    let prompt = descriptions.join(', ');
+    parts.push(descriptions.join(', '));
     
-    // Add brightness hint
+    // Brightness-specific emoji and text
     if (analysis.brightness > 180) {
-      prompt += ', bright and vibrant';
+      parts.push('✨💫⭐🌟☀️💡 bright and vibrant');
     } else if (analysis.brightness < 80) {
-      prompt += ', dark and moody';
+      parts.push('🌑🌙⭐🌌🦇🦉 dark and moody');
     }
 
-    // Add style hints
-    prompt += ', photorealistic, high quality';
+    // Style hints
+    parts.push('photorealistic, high quality');
 
-    return prompt;
+    return parts.join(' | ');
   }
 
   async generateImage(prompt, outputName) {
