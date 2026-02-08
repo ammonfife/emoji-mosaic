@@ -265,7 +265,8 @@ class ImagePrompter {
   
   updateHelpText() {
     const helpTexts = {
-      prompt: '<strong>AI Prompt:</strong> Optimized for image generation AI (DALL-E, Midjourney, etc.)',
+      prompt: '<strong>Color Analysis:</strong> Emoji based on detected colors and concepts',
+      vision: '<strong>Vision → Emoji:</strong> Paste an AI description (ChatGPT/Claude) for semantic emoji',
       grid: '<strong>Spatial Grid:</strong> Shows emoji layout matching image composition',
       story: '<strong>Story Mode:</strong> Narrative description of the scene'
     };
