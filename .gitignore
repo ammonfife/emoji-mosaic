@@ -7,5 +7,8 @@ data/emoji-features*.json
 # Build output (run npm run build to generate)
 dist/
 
+# Generated test images
+generated/
+
 # OS
 .DS_Store
